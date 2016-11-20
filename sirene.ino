@@ -9,7 +9,6 @@ byte mac[] = {
 IPAddress ip(169,254, 38,200);
 
 unsigned int localPort = 2355;      // local port to listen on
-unsigned int heartBeatPin = 8;
 unsigned int sirenenPin = 9;
 
 // buffers for receiving and sending data
@@ -23,13 +22,13 @@ EthernetUDP Udp;
 
 void sirene(int what) {
   if (what == AN) {
-    digitalWrite(sirenenPin, HIGH);  
+    digitalWrite(sirenenPin, HIGH);
   } else {
-    digitalWrite(sirenenPin, LOW);  
+    digitalWrite(sirenenPin, LOW);
   }
 }
 
-enum state_t {WAIT, STATEw0arg, STATEw1arg, STATEw2arg, STATEw3arg, ON};
+enum state_t {WAIT, PACKET, ON};
 unsigned long interval = 0;
 unsigned long timer = 0;
 unsigned long pause = 0;
@@ -43,50 +42,60 @@ void setup() {
   Udp.begin(localPort);
 
   pinMode(sirenenPin, OUTPUT);
-  //pinMode(heartBeatPin, OUTPUT);
 
   sirene(AUS);
   Serial.begin(9600);
 }
 
-
 void loop() {
   if (hb_timer-- == 0) {
       hb_timer = hb_interval;
-      //int value = digitalRead(heartBeatPin);
-      //digitalWrite(heartBeatPin, !value);
   }
-
+  
+  // if there's data available, read a packet
+  int packetSize = Udp.parsePacket();
+  Udp.read(packetBuffer, UDP_TX_PACKET_MAX_SIZE);
+  int finterval;
+  int ftimer;
+  int fpause;
+  int wert = sscanf( packetBuffer+7," %u %u %u", &finterval, &ftimer, &fpause);
+  
   switch (state) {
     case(WAIT):
       break;
-    case(STATEw0arg):
-      interval=1;
-      timer=100;
-      pause=137;
-      sirene(AN);
-      state=ON;
-      break;
-    case(STATEw1arg):
-      interval="fd";
-      timer=100;
-      pause=137;
-      sirene(AN);
-      state=ON;
-      break;
-    case(STATEw2arg):
-      interval="fd";
-      time="fz";
-      pause=137;
-      sirene(AN);
-      state=ON;
-      break;
-    case(STATEw3arg):
-      interval="fd";
-      time="fz";
-      pause="fp";
-      sirene(AN);
-      state=ON;
+    case(PACKET):
+      switch(wert){
+        case(-1):
+          interval=1;
+          timer=100;
+          pause=137;
+          sirene(AN);
+          state=ON;
+          break;
+        case(1):
+          interval=finterval;
+          timer=100;
+          pause=137;
+          sirene(AN);
+          state=ON;
+          break;
+        case(2):
+          interval=finterval;
+          timer=ftimer;
+          pause=137;
+          sirene(AN);
+          state=ON;
+          break;
+        case(3):
+          interval=finterval;
+          timer=ftimer;
+          pause=fpause;
+          sirene(AN);
+          state=ON;
+          break;
+        default:
+          break;
+      }
       break;
     case(ON):
       timer--;
@@ -99,34 +108,6 @@ void loop() {
       sirene(AUS);
       state = WAIT;
   }
-  // if there's data available, read a packet
-  int packetSize = Udp.parsePacket();
-  Udp.read(packetBuffer, UDP_TX_PACKET_MAX_SIZE);
-  char packetBuffer[] = "alarm23 23 420 137";
-  int fd;
-  int fz;
-  int fp;
-  int wert = sscanf( packetBuffer+7," %u %u %u", &fd, &fz, &fp);
-
-  switch(wert){
-    // Keine Parameter
-    case(-1):
-      //state = SINGLE
-      printf( "Parameter: %d singlestate\n", wert);
-      break;
-    // 1 Parameter
-    case(1):
-      // state mit (fd)auer + (fz)eit(state = SINGLE) & (fp)ause(state = SINGLE)
-      printf( "Parameter: %d i: %d fnordstate mit dauer(i)\n", wert, fd);
-      break;
-    case(2):
-      // state mit (fd)auer & (fz)eit + (fp)ause(state = SINGLE)
-      printf( "Parameter: %d i: %d l: %d fnordstate mit dauer(i) mit laenge(l)\n", wert, fd, fz);
-      break;
-    case(3):
-      // state mit (fd)auer & (fz)eit & (fp)ause
-      printf( "Parameter: %d i: %d l: %d p: %d fnordstate mit dauer(i) mit laenge(l) mit pause(p)\n", wert, fd, fz, fp);
-      break;
   }
   
   delay(10);
