@@ -108,8 +108,6 @@ void loop() {
       sirene(AUS);
       state = WAIT;
   }
-  }
-  
   delay(10);
 }
 
